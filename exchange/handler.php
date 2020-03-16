@@ -25,7 +25,7 @@ Loader::includeModule("iblock");
 Cmodule::IncludeModule("catalog");
 $blockElement = new CIBlockElement;
 
-const STEP_COUNT = 500;
+const STEP_COUNT = 400;
 $curentStep = $_POST['step'];
 $endRow = false;
 $logEditName = 0;
@@ -35,6 +35,7 @@ $logPriceUpdate = $_POST['price_update'];
 $logPriceAdd = $_POST['price_add'];
 $logStorageUpdate = $_POST['storage_update'];
 $logStorageAdd = $_POST['storage_add'];
+$logPriceSkip = $_POST['price_skip'];
 
 if (!file_exists('catalog.xls')) {
     $output = array(
@@ -89,8 +90,8 @@ for ($row = $start; $row <= $end; $row++) {
 
     // Получим стоимость, приводим к себестоимости через формулу: минус 30%, плюс 20%
     $price = $worksheet->getCell('C' . $row)->getValue();
-    $price = $price - $price * 0.30;
-    $price = $price + $price * 0.20;
+    /*$price = $price - $price * 0.30;
+    $price = $price + $price * 0.20;*/
 
     // Сформируем массив
     $mapArticul[] = $articul;
@@ -103,6 +104,9 @@ for ($row = $start; $row <= $end; $row++) {
     );
 
 }
+unset($excel);
+unset($excelObj);
+unset($worksheet);
 
 // Теперь обработаем данные, которые получили из таблицы.
 
@@ -111,7 +115,16 @@ $requestElements  = $blockElement::GetList(
     array("IBLOCK_ID" => 25, "ACTIVE_DATE" => "Y", "ACTIVE" => "Y", "PROPERTY_CML2_ARTICLE" => $mapArticul),
     false,
     false,
-    array("ID", "NAME", "IBLOCK_ID", "CATALOG_GROUP_1", "PROPERTY_CML2_ARTICLE", "PROPERTY_NAME_CORRECT")
+    array(
+        "ID",
+        "NAME",
+        "IBLOCK_ID",
+        "CATALOG_GROUP_1",
+        "PROPERTY_CML2_ARTICLE",
+        "PROPERTY_NAME_CORRECT",
+        "PROPERTY_PRICE_FIXED",
+        "PROPERTY_SKLAD_7",
+    )
 );
 $arrElements = [];
 while ($element = $requestElements -> GetNextElement()) {
@@ -136,7 +149,7 @@ while ($element = $requestElements -> GetNextElement()) {
 
     // расчитаем цену.  проверим, менять цену или нет
     $price = $product[$articul]["PRICE"];
-    if($item["CATALOG_PRICE_ID_1"] != $price) {
+    if($item["CATALOG_PRICE_ID_1"] != $price && $item["PROPERTY_PRICE_FIXED_VALUE"] != 1) {
 
         $arFields = Array(
             "PRODUCT_ID" => $item["ID"],
@@ -156,13 +169,27 @@ while ($element = $requestElements -> GetNextElement()) {
             $logPriceAdd++;
         }
 
+    } else {
+        $logPriceSkip++;
     }
 
     // Добавим количество на складах
 
     $storageID = false;
     $storageCount = $product[$articul]["COUNT"];
-    if($item["CATALOG_QUANTITY"] != $storageCount) {
+
+    // получим значения из других складов, чтобы их приплюсовать в общую сумму остатка
+
+
+    if($storageCount != $item["PROPERTY_SKLAD_7_VALUE"] || $item["CATALOG_QUANTITY"] < $storageCount) {
+
+        if(!empty($item["PROPERTY_SKLAD_7"])) {
+            $fullQuantity = $item["CATALOG_QUANTITY"] - $item["PROPERTY_SKLAD_7"];
+            if($fullQuantity > 0) $storageCount = $fullQuantity;
+        }
+
+        // запишем в свойство товара
+        $blockElement->SetPropertyValuesEx($item["ID"], 25, array("SKLAD_7" => $product[$articul]["COUNT"]));
 
         $requestStorage = CCatalogStoreProduct::GetList(array(), array("PRODUCT_ID" => $item["ID"], "STORE_ID" => 1));
         if ($arrStorage = $requestStorage->Fetch()) $storageID = $arrStorage["ID"];
@@ -279,6 +306,7 @@ $output = array(
     "price_add" => $logPriceAdd,
     "storage_update" => $logStorageUpdate,
     "storage_add" => $logStorageAdd,
+    "price_skip" => $logPriceSkip,
 );
 
 $endRow = true;
@@ -287,6 +315,7 @@ if($endRow === true) {
     $content .= '<div>Добавленно новых товаров: <b>'.$logProductAdd.'</b></div>';
     $content .= '<div>Обновлено цен: <b>'.$logPriceUpdate.'</b></div>';
     $content .= '<div>Добавлено цен: <b>'.$logPriceAdd.'</b></div>';
+    $content .= '<div>Пропущено цен (зафиксированы): <b>'.$logPriceSkip.'</b></div>';
     $content .= '<div>Обновлено количество: <b>'.$logPriceUpdate.'</b></div>';
     $content .= '<div>Добавлено количество: <b>'.$logStorageAdd.'</b></div>';
 
