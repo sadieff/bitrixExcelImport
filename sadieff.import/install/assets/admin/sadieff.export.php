@@ -97,7 +97,7 @@ $tabControl = new CAdminTabControl(
     <? if($REQUEST_METHOD == "POST" && $apply != ""): ?>
         <script>
 
-            startExport(123);
+            startExport(1);
             log_exchange();
 
             function startExport(step, product_update = 0, product_add = 0, price_update = 0, price_add = 0, storage_update = 0, storage_add = 0, price_skip = 0){
@@ -120,7 +120,7 @@ $tabControl = new CAdminTabControl(
                         $('#exportResult').text(data.percent+'%').css('width', data.percent+'%');
                         var step = +data.step + 1;
                         if(data.step < data.total) startExport(step, +data.product_update, +data.product_add, +data.price_update, +data.price_add, +data.storage_update, +data.storage_add, +data.price_skip);
-                            else log();
+                            else log_exchange();
                     }
                 });
 

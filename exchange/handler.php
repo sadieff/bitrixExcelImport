@@ -291,7 +291,7 @@ foreach($product as $item) {
 }
 
 // Сформируем ответ для ajax
-$totalStep = round($lastRow / STEP_COUNT, 0, PHP_ROUND_HALF_UP);
+$totalStep = ceil($lastRow / STEP_COUNT);
 $percent = ($curentStep / $totalStep) * 100;
 
 $output = array(
